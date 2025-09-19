@@ -44,10 +44,10 @@
         #scanner-container {
             position: relative;
             width: 100%;
-            height: 300px; /* Adjust as needed */
+            height: 300px;
             margin-top: 20px;
             overflow: hidden;
-            display: none; /* Initially hidden */
+            display: none;
         }
         #scanner-container video {
             width: 100%;
@@ -151,6 +151,7 @@
     <script>
         // Array to store all entered product data
         let products = [];
+        let isScanning = false;
 
         // EAN-API specific variables
         const eanApiKey = '3754c1841bbd4447c2874f8a7f9de91119a22b2b';
@@ -253,7 +254,7 @@
         async function handleAddItem() {
             const abteilung = abteilungInput.value.trim();
             let produkt = eanOrProduktInput.value.trim();
-            const mhd = mhdInput.value; // The date input provides a YYYY-MM-DD string
+            const mhd = mhdInput.value;
 
             if (!abteilung || !produkt || !mhd) {
                 showMessage("Bitte füllen Sie alle Felder aus.", "error");
@@ -273,15 +274,15 @@
                     eanOrProduktInput.value = productName;
                     showMessage("Produktname erfolgreich gefunden.", "success");
                 } else {
-                    eanOrProduktInput.value = ''; // Clear the input field
+                    eanOrProduktInput.value = '';
                     showMessage("Kein Produktname gefunden. Bitte geben Sie manuell einen Produktnamen ein.", "error");
-                    return; // Stop the function here to prompt for manual input
+                    return;
                 }
             }
 
             products.push({ abteilung, produkt, mhd });
             eanOrProduktInput.value = '';
-            mhdInput.value = getFormattedDate(); // Reset MHD to today's date
+            mhdInput.value = getFormattedDate();
 
             renderProductList();
             showMessage("Eintrag hinzugefügt!", "success");
@@ -294,18 +295,15 @@
                 return;
             }
 
-            // Sort products by Abteilung (department) and then by MHD
             products.sort((a, b) => {
                 const abteilungComparison = a.abteilung.localeCompare(b.abteilung);
                 if (abteilungComparison !== 0) {
                     return abteilungComparison;
                 }
                 
-                // Dates are already in YYYY-MM-DD format, which is perfect for string comparison
                 return a.mhd.localeCompare(b.mhd);
             });
 
-            // Group products by Abteilung
             const groupedProducts = products.reduce((acc, current) => {
                 const key = current.abteilung;
                 if (!acc[key]) {
@@ -315,7 +313,6 @@
                 return acc;
             }, {});
 
-            // Create PDF
             const doc = new window.jspdf.jsPDF('p', 'mm', 'a4');
             let isFirstPage = true;
 
@@ -324,11 +321,9 @@
                     doc.addPage();
                 }
                 
-                // Add title for the department
                 doc.setFontSize(22);
                 doc.text(`MHD-Liste - ${abteilung}`, 14, 20);
                 
-                // Convert dates for display in the PDF
                 const tableData = groupedProducts[abteilung].map(p => [p.abteilung, p.produkt, formatDateForDisplay(p.mhd)]);
                 
                 doc.autoTable({
@@ -362,9 +357,6 @@
             showMessage("PDF wurde erstellt!", "success");
         }
         
-        // --- New features added below ---
-        
-        // Function to get today's date in YYYY-MM-DD format for input[type="date"]
         function getFormattedDate() {
             const today = new Date();
             const year = today.getFullYear();
@@ -373,16 +365,13 @@
             return `${year}-${month}-${day}`;
         }
         
-        // Set the initial MHD date
         mhdInput.value = getFormattedDate();
 
-        // Dark mode logic
         function toggleDarkMode() {
             const isDark = document.documentElement.classList.toggle('dark');
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
         }
 
-        // Apply saved dark mode preference on page load
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark') {
             document.documentElement.classList.add('dark');
@@ -390,7 +379,12 @@
         
         // Barcode scanning logic with QuaggaJS
         function startScanner() {
+            if (isScanning) return;
+            isScanning = true;
+
             scannerContainer.style.display = 'block';
+            scanBtn.textContent = 'Scanner beenden';
+            
             Quagga.init({
                 inputStream: {
                     name: "Live",
@@ -399,17 +393,17 @@
                     constraints: {
                         width: 640,
                         height: 480,
-                        facingMode: "environment" // Use the back camera
+                        facingMode: "environment"
                     },
                 },
                 decoder: {
-                    readers: ["ean_reader"] // Specify the EAN reader
+                    readers: ["ean_reader"]
                 }
             }, function(err) {
                 if (err) {
                     console.error(err);
-                    showMessage("Fehler beim Starten der Kamera.", "error");
-                    scannerContainer.style.display = 'none';
+                    showMessage("Fehler beim Starten der Kamera. Möglicherweise keine Berechtigung oder Kamera nicht verfügbar.", "error");
+                    stopScanner();
                     return;
                 }
                 Quagga.start();
@@ -424,15 +418,25 @@
         }
         
         function stopScanner() {
+            if (!isScanning) return;
+            isScanning = false;
+
             Quagga.stop();
             scannerContainer.style.display = 'none';
+            scanBtn.textContent = 'EAN scannen';
         }
 
         // Event Listeners
         addItemBtn.addEventListener('click', handleAddItem);
         generatePdfBtn.addEventListener('click', handleGeneratePdf);
         darkModeToggle.addEventListener('click', toggleDarkMode);
-        scanBtn.addEventListener('click', startScanner);
+        scanBtn.addEventListener('click', () => {
+            if (isScanning) {
+                stopScanner();
+            } else {
+                startScanner();
+            }
+        });
     </script>
 </body>
 </html>
