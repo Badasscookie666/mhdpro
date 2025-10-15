@@ -119,8 +119,8 @@
             </div>
             
             <div>
-                <label for="mhd" class="block text-sm font-medium text-gray-700 dark:text-gray-300">MHD Datum (TT.MM.JJJJ)</label>
-                <input type="date" id="mhd" placeholder="z.B. 01.01.2025" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
+                <label for="mhd" class="block text-sm font-medium text-gray-700 dark:text-gray-300">MHD Datum</label>
+                <input type="date" id="mhd" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
             </div>
         </div>
 
@@ -304,18 +304,23 @@
             const abteilung = abteilungInput.value.trim();
             const door = doorDisplay.textContent.trim();
             let produkt = eanOrProduktInput.value.trim();
-            const mhd = mhdInput.value.trim();
+            const mhdISO = mhdInput.value.trim(); // Liest YYYY-MM-DD
 
-            if (!abteilung || !produkt || !mhd) {
+            if (!abteilung || !produkt || !mhdISO) {
                 showMessage("Bitte füllen Sie alle Felder aus.", "error");
                 return;
             }
 
-            const dateRegex = /^\d{2}\.\d{2}\.\d{4}$/;
-            if (!dateRegex.test(mhd)) {
-                showMessage("Das MHD-Format muss TT.MM.JJJJ sein.", "error");
+            // NEUE PRÜFUNG: Prüft auf das ISO-Format, das von <input type="date"> geliefert wird (YYYY-MM-DD)
+            const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!isoDateRegex.test(mhdISO)) {
+                showMessage("Ungültiges Datumsformat. Bitte verwenden Sie den Datumswähler.", "error");
                 return;
             }
+
+            // KONVERTIERUNG: Konvertiere YYYY-MM-DD in DD.MM.YYYY für die Anzeige und das PDF
+            const [year, month, day] = mhdISO.split('-');
+            const mhdGerman = `${day}.${month}.${year}`;
 
             const eanRegex = /^\d{13}$/;
             if (eanRegex.test(produkt)) {
@@ -335,9 +340,9 @@
                 }
             }
 
-            products.push({ abteilung, door, produkt, mhd });
+            products.push({ abteilung, door, produkt, mhd: mhdGerman }); // Speichern mit DD.MM.YYYY
             eanOrProduktInput.value = '';
-            mhdInput.value = getFormattedDate();
+            mhdInput.value = getFormattedDateISO(); // Zurücksetzen auf heutiges Datum im ISO-Format
 
             renderProductList();
             showMessage("Eintrag hinzugefügt!", "success");
@@ -430,7 +435,6 @@
                         halign: 'center', // Zentrierung für die Kopfzeile
                     },
                     margin: { top: 30 },
-                    // ANPASSUNG: Column styles korrigiert. Alle Spalten, einschließlich 'Produkt' (Index 2), sind jetzt zentriert.
                     columnStyles: {
                         0: { cellWidth: 35, halign: 'center' }, // Abteilung - Zentriert
                         1: { cellWidth: 35, halign: 'center' }, // Position - Zentriert
@@ -451,16 +455,17 @@
             showMessage("PDF wurde erstellt!", "success");
         }
         
-        function getFormattedDate() {
+        // Gibt das Datum im ISO-Format (YYYY-MM-DD) zurück, das von <input type="date"> benötigt wird.
+        function getFormattedDateISO() {
             const today = new Date();
             const day = String(today.getDate()).padStart(2, '0');
             const month = String(today.getMonth() + 1).padStart(2, '0');
             const year = today.getFullYear();
-            return `${day}.${month}.${year}`;
+            return `${year}-${month}-${day}`; 
         }
         
         // Set the initial MHD date and location on load
-        mhdInput.value = getFormattedDate();
+        mhdInput.value = getFormattedDateISO(); 
         updateLocationDisplay(true);
 
         // --- Barcode Scanning Logic ---
@@ -522,7 +527,7 @@
         nextDoorBtn.addEventListener('click', handleNextDoor);
         prevDoorBtn.addEventListener('click', handlePrevDoor);
         abteilungInput.addEventListener('change', () => {
-              updateLocationDisplay(true);
+             updateLocationDisplay(true);
         });
         
         scanBtn.addEventListener('click', startScanner);
